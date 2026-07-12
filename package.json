@@ -1,0 +1,57 @@
+{
+  "name": "@jonathan-teamstatus/pi-openai-usage",
+  "version": "0.1.0",
+  "description": "Pi footer and command for ChatGPT Codex usage windows",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonathan-teamstatus/pi-openai-usage.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jonathan-teamstatus/pi-openai-usage/issues"
+  },
+  "homepage": "https://github.com/jonathan-teamstatus/pi-openai-usage#readme",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "openai",
+    "codex",
+    "usage"
+  ],
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CONTRIBUTING.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "check": "npm run typecheck && npm test",
+    "verify": "npm run check && npm pack --dry-run"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.80.6"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}
