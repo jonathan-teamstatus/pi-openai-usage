@@ -5,7 +5,7 @@ import {
   decodeChatGPTAccountId,
   formatRelativeReset,
   formatUsageDetails,
-  formatUsageFooter,
+  formatUsageStatus,
   parseUsagePayload,
 } from "../src/core.ts";
 
@@ -73,7 +73,7 @@ test("formats relative resets plus compact footer and detailed status", () => {
   assert.equal(formatRelativeReset(NOW + (2 * 60 + 12) * 60_000, NOW), "2h12m");
   assert.equal(formatRelativeReset(NOW + (3 * 24 + 4) * 60 * 60_000, NOW), "3d4h");
   assert.equal(formatRelativeReset(NOW - 1, NOW), "now");
-  assert.equal(formatUsageFooter(usage, NOW), "5h 72% ↻2h12m · 7d 39% ↻3d4h");
+  assert.equal(formatUsageStatus(usage), "5h 72% · 7d 39%");
 
   const details = formatUsageDetails(usage, NOW, NOW);
   assert.match(details, /Primary window \(5h\)/);

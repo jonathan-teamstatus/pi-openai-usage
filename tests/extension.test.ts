@@ -32,6 +32,9 @@ function createHarness(fetchImpl: typeof fetch, oauth = true) {
     on(name: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) {
       events.set(name, handler);
     },
+    getThinkingLevel() {
+      return "high";
+    },
   } as unknown as ExtensionAPI;
 
   registerOpenAIUsage(pi, { fetch: fetchImpl });
@@ -39,10 +42,17 @@ function createHarness(fetchImpl: typeof fetch, oauth = true) {
 }
 
 function createContext(oauth = true) {
-  const widgets = new Map<string, { value: unknown; options?: { placement?: string } }>();
+  let footerComponent: { render: (width: number) => string[]; dispose?: () => void } | undefined;
+  let renderRequests = 0;
   const notifications: Array<{ message: string; level: string }> = [];
   const context = {
-    model: { provider: "openai-codex", id: "gpt-5.5", api: "openai-codex-responses" },
+    model: {
+      provider: "openai-codex",
+      id: "gpt-5.5",
+      api: "openai-codex-responses",
+      reasoning: true,
+      contextWindow: 272_000,
+    },
     modelRegistry: {
       getAll() {
         return [{ provider: "openai-codex", id: "gpt-5.5" }];
@@ -54,16 +64,51 @@ function createContext(oauth = true) {
         return accessToken();
       },
     },
+    sessionManager: {
+      getEntries() {
+        return [];
+      },
+      getCwd() {
+        return "/tmp/project";
+      },
+      getSessionName() {
+        return undefined;
+      },
+    },
+    getContextUsage() {
+      return { tokens: 13_600, contextWindow: 272_000, percent: 5 };
+    },
     ui: {
-      setWidget(key: string, value: unknown, options?: { placement?: string }) {
-        widgets.set(key, { value, options });
+      setFooter(factory: unknown) {
+        footerComponent?.dispose?.();
+        if (typeof factory !== "function") {
+          footerComponent = undefined;
+          return;
+        }
+        footerComponent = factory(
+          { requestRender: () => renderRequests++ },
+          {
+            fg: (_color: string, text: string) => text,
+          },
+          {
+            getGitBranch: () => "main",
+            getExtensionStatuses: () => new Map([["00-sandbox", "[Sandbox: off · review auto]"]]),
+            getAvailableProviderCount: () => 2,
+            onBranchChange: () => () => {},
+          },
+        );
       },
       notify(message: string, level: string) {
         notifications.push({ message, level });
       },
     },
   } as unknown as ExtensionContext;
-  return { context, widgets, notifications };
+  return {
+    context,
+    notifications,
+    getFooter: () => footerComponent,
+    getRenderRequests: () => renderRequests,
+  };
 }
 
 test("wires lifecycle refreshes, throttles background fetches, and force-refreshes /usage", async () => {
@@ -78,7 +123,7 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
     return validResponse();
   }) as typeof fetch;
   const { commands, events } = createHarness(fetchImpl);
-  const { context, widgets, notifications } = createContext();
+  const { context, notifications, getFooter, getRenderRequests } = createContext();
 
   assert.deepEqual([...events.keys()].sort(), ["agent_settled", "model_select", "session_shutdown", "session_start"]);
   assert.equal(events.get("session_start")?.({}, context), undefined, "lifecycle refresh must not block Pi");
@@ -87,19 +132,15 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
   assert.ok(command);
   await command("", context);
   assert.equal(requests, 1, "/usage reuses an in-flight lifecycle refresh");
-  const widget = widgets.get("openai-usage");
-  assert.equal(widget?.options?.placement, "belowEditor");
-  const factory = widget?.value as
-    | ((_tui: unknown, theme: { fg: (_color: string, text: string) => string }) => { render: (width: number) => string[] })
-    | undefined;
-  assert.ok(factory);
-  const component = factory({}, { fg: (_color, text) => text });
-  const rendered = component.render(80)[0] ?? "";
-  assert.equal(visibleWidth(rendered), 80);
-  assert.match(rendered.trim(), /^5h 72% ↻.* · 7d 39% ↻/);
-  assert.match(rendered, /^ +5h/, "usage widget is right-aligned");
-  assert.equal(visibleWidth(component.render(20)[0] ?? ""), 20, "narrow output is truncated to width");
-  assert.equal(visibleWidth(component.render(0)[0] ?? ""), 0);
+  const footerLines = getFooter()?.render(100) ?? [];
+  assert.match(footerLines[0] ?? "", /^\/tmp\/project \(main\) +5h 72% · 7d 39%$/);
+  assert.match(footerLines[1] ?? "", /5\.0%\/272k \(auto\).*gpt-5\.5.*high/);
+  assert.equal(footerLines[2], "[Sandbox: off · review auto]");
+  const narrowStats = getFooter()?.render(20)[1] ?? "";
+  assert.ok(visibleWidth(narrowStats) <= 20);
+  assert.match(narrowStats, /5\.0%/, "narrow footer preserves context stats before model text");
+  assert.doesNotMatch(narrowStats, /gpt-5\.5/);
+  assert.ok(getRenderRequests() > 0);
 
   assert.equal(events.get("agent_settled")?.({}, context), undefined);
   assert.equal(requests, 1, "background refreshes are throttled");
@@ -111,7 +152,7 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
 
   (context as unknown as { model: { provider: string } }).model = { provider: "anthropic" };
   events.get("model_select")?.({}, context);
-  assert.equal(widgets.get("openai-usage")?.value, undefined);
+  assert.doesNotMatch(getFooter()?.render(100)[0] ?? "", /5h 72%/);
 });
 
 test("clears display without a Codex OAuth session", async () => {
@@ -121,11 +162,11 @@ test("clears display without a Codex OAuth session", async () => {
     return validResponse();
   }) as typeof fetch;
   const { events } = createHarness(fetchImpl);
-  const { context, widgets } = createContext(false);
+  const { context, getFooter } = createContext(false);
 
   events.get("session_start")?.({}, context);
   assert.equal(requests, 0);
-  assert.equal(widgets.get("openai-usage")?.value, undefined);
+  assert.doesNotMatch(getFooter()?.render(100)[0] ?? "", /5h /);
 });
 
 test("switching away from Codex aborts an in-flight background refresh", async () => {
@@ -147,7 +188,7 @@ test("switching away from Codex aborts an in-flight background refresh", async (
       );
     })) as typeof fetch;
   const { events } = createHarness(fetchImpl);
-  const { context, widgets } = createContext();
+  const { context, getFooter } = createContext();
 
   events.get("session_start")?.({}, context);
   await started;
@@ -156,7 +197,7 @@ test("switching away from Codex aborts an in-flight background refresh", async (
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(aborted, true);
-  assert.equal(widgets.get("openai-usage")?.value, undefined);
+  assert.doesNotMatch(getFooter()?.render(100)[0] ?? "", /5h /);
 });
 
 test("session shutdown aborts an in-flight background refresh", async () => {
@@ -178,7 +219,7 @@ test("session shutdown aborts an in-flight background refresh", async () => {
       );
     })) as typeof fetch;
   const { events } = createHarness(fetchImpl);
-  const { context, widgets } = createContext();
+  const { context, getFooter } = createContext();
 
   assert.equal(events.get("session_start")?.({}, context), undefined);
   await started;
@@ -186,7 +227,7 @@ test("session shutdown aborts an in-flight background refresh", async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(aborted, true);
-  assert.equal(widgets.get("openai-usage")?.value, undefined);
+  assert.equal(getFooter(), undefined);
 });
 
 test("/usage never exposes a failed endpoint response body", async () => {

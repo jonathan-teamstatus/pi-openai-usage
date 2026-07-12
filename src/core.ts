@@ -111,12 +111,12 @@ function formatAbsoluteReset(resetAt: number): string {
   return new Date(resetAt).toLocaleString();
 }
 
-function formatWindowFooter(window: UsageWindow, now: number): string {
-  return `${formatWindowLabel(window.limitWindowSeconds)} ${formatRemainingPercent(window.usedPercent)} ↻${formatRelativeReset(window.resetAt, now)}`;
+function formatWindowStatus(window: UsageWindow): string {
+  return `${formatWindowLabel(window.limitWindowSeconds)} ${formatRemainingPercent(window.usedPercent)}`;
 }
 
-export function formatUsageFooter(snapshot: UsageSnapshot, now = Date.now()): string {
-  return `${formatWindowFooter(snapshot.primary, now)} · ${formatWindowFooter(snapshot.secondary, now)}`;
+export function formatUsageStatus(snapshot: UsageSnapshot): string {
+  return `${formatWindowStatus(snapshot.primary)} · ${formatWindowStatus(snapshot.secondary)}`;
 }
 
 function formatWindowDetails(label: string, window: UsageWindow, now: number): string[] {

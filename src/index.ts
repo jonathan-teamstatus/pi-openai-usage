@@ -1,14 +1,13 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { fetchOpenAIUsage, type UsageRequestOptions } from "./client.ts";
+import { installUsageFooter, type UsageFooterHandle } from "./footer.ts";
 import {
   decodeChatGPTAccountId,
   formatUsageDetails,
-  formatUsageFooter,
+  formatUsageStatus,
   type UsageSnapshot,
 } from "./core.ts";
 
-const WIDGET_KEY = "openai-usage";
 const CODEX_PROVIDER = "openai-codex";
 const REFRESH_INTERVAL_MS = 60_000;
 const COMMAND_ERROR = "Unable to refresh OpenAI usage. Check your Codex OAuth sign-in and try again.";
@@ -23,6 +22,7 @@ interface Runtime {
   lastAttemptAt?: number;
   inFlight?: Promise<UsageSnapshot>;
   abortController?: AbortController;
+  footer?: UsageFooterHandle;
 }
 
 function isOpenAICodexSelected(ctx: ExtensionContext): boolean {
@@ -42,36 +42,20 @@ function isUsingCodexOAuth(ctx: ExtensionContext): boolean {
   }
 }
 
-function clearUsage(ctx: ExtensionContext, runtime: Runtime): void {
+function clearUsage(_ctx: ExtensionContext, runtime: Runtime): void {
   runtime.snapshot = undefined;
   runtime.updatedAt = undefined;
-  ctx.ui.setWidget(WIDGET_KEY, undefined);
+  runtime.footer?.requestRender();
 }
 
-function setUsageDisplay(ctx: ExtensionContext, runtime: Runtime, now: number): void {
-  if (!runtime.snapshot) {
-    ctx.ui.setWidget(WIDGET_KEY, undefined);
-    return;
-  }
-
-  const text = formatUsageFooter(runtime.snapshot, now);
-  ctx.ui.setWidget(
-    WIDGET_KEY,
-    (_tui, theme) => ({
-      render(width: number) {
-        const truncated = truncateToWidth(text, width, "…");
-        const padding = " ".repeat(Math.max(0, width - visibleWidth(truncated)));
-        return [theme.fg("dim", padding + truncated)];
-      },
-      invalidate() {},
-    }),
-    { placement: "belowEditor" },
-  );
+function setUsageDisplay(runtime: Runtime): void {
+  runtime.footer?.requestRender();
 }
 
 export function registerOpenAIUsage(pi: ExtensionAPI, options: OpenAIUsageOptions = {}): void {
   const runtime: Runtime = {};
   const now = options.now ?? Date.now;
+  let activeCtx: ExtensionContext;
 
   async function refresh(ctx: ExtensionContext, force: boolean): Promise<UsageSnapshot> {
     if (!isOpenAICodexSelected(ctx) || !isUsingCodexOAuth(ctx)) {
@@ -117,7 +101,7 @@ export function registerOpenAIUsage(pi: ExtensionAPI, options: OpenAIUsageOption
       }
       runtime.snapshot = snapshot;
       runtime.updatedAt = now();
-      setUsageDisplay(ctx, runtime, runtime.updatedAt);
+      setUsageDisplay(runtime);
       return snapshot;
     })();
 
@@ -147,6 +131,7 @@ export function registerOpenAIUsage(pi: ExtensionAPI, options: OpenAIUsageOption
   pi.registerCommand("usage", {
     description: "Force-refresh OpenAI Codex usage windows",
     async handler(_args, ctx) {
+      activeCtx = ctx;
       try {
         const snapshot = await refresh(ctx, true);
         const updatedAt = runtime.updatedAt ?? now();
@@ -158,20 +143,31 @@ export function registerOpenAIUsage(pi: ExtensionAPI, options: OpenAIUsageOption
   });
 
   pi.on("session_start", (_event, ctx) => {
+    activeCtx = ctx;
+    runtime.footer = installUsageFooter(
+      ctx,
+      pi,
+      () => activeCtx,
+      () => (runtime.snapshot ? formatUsageStatus(runtime.snapshot) : undefined),
+    );
     void refreshQuietly(ctx);
   });
 
   pi.on("model_select", (_event, ctx) => {
+    activeCtx = ctx;
     void refreshQuietly(ctx);
   });
 
   pi.on("agent_settled", (_event, ctx) => {
+    activeCtx = ctx;
     void refreshQuietly(ctx);
   });
 
   pi.on("session_shutdown", (_event, ctx) => {
     runtime.abortController?.abort();
     clearUsage(ctx, runtime);
+    runtime.footer?.restore();
+    runtime.footer = undefined;
   });
 }
 

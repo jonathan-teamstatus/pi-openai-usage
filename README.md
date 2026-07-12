@@ -1,6 +1,6 @@
 # pi-openai-usage
 
-A standalone [Pi](https://pi.dev) extension that shows ChatGPT Codex rate-limit usage in a right-aligned line below the editor and with `/usage`.
+A standalone [Pi](https://pi.dev) extension that shows ChatGPT Codex rate-limit usage in Pi's footer and with `/usage`.
 
 ## Important: private endpoint
 
@@ -8,8 +8,9 @@ This extension calls `https://chatgpt.com/backend-api/wham/usage`. This is an un
 
 ## Features
 
-- Compact, dimmed usage line aligned to the right below the editor, for example: `5h 73% ↻2h12m · 7d 90% ↻3d4h`.
-- Keeps Pi's left-aligned extension-status area free for shorter mode indicators.
+- Places compact usage on the right side of the working-directory/branch line, for example: `5h 73% · 7d 90%`.
+- Preserves Pi's token/context/model line and the separate extension-status line below it.
+- Keeps reset countdowns and local reset times in `/usage` instead of adding another TUI line.
 - Matches the Codex app by showing percentage remaining (`100 − used_percent`).
 - `/usage` force-refreshes and displays both windows, remaining percentages, relative and local reset times, and update time.
 - Refreshes without blocking Pi at session start, when an `openai-codex` model is selected, and after the agent settles.
@@ -23,7 +24,7 @@ This extension calls `https://chatgpt.com/backend-api/wham/usage`. This is an un
 Install a pinned release:
 
 ```bash
-pi install git:github.com/jonathan-teamstatus/pi-openai-usage@v0.1.1
+pi install git:github.com/jonathan-teamstatus/pi-openai-usage@v0.1.2
 ```
 
 For local development:
@@ -32,7 +33,11 @@ For local development:
 pi install "$PWD"
 ```
 
-Select a built-in `openai-codex` model and sign in through Pi's `/login`. The right-aligned usage line appears only after a successful response.
+Select a built-in `openai-codex` model and sign in through Pi's `/login`. The compact usage text appears only after a successful response.
+
+## Footer compatibility
+
+Pi's public `setStatus` API cannot right-align text within the working-directory line, so this extension uses the public custom-footer API and mirrors Pi 0.80.x's standard three-line footer. Pi supports one custom footer at a time; another custom-footer extension loaded later will replace this one. The mirrored footer keeps the normal `(auto)` indicator but cannot observe a runtime auto-compaction toggle, and it omits Pi's experimental `xp` marker.
 
 ## Command
 
