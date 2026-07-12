@@ -14,6 +14,6 @@ This extension:
 - decodes the JWT account-ID claim locally, without logging or persisting the token or claim;
 - sends credentials only to the fixed `https://chatgpt.com/backend-api/wham/usage` URL, rejects redirects, and uses a 10-second timeout;
 - never logs, persists, or exposes OAuth tokens, account IDs, or endpoint response bodies; and
-- treats malformed or failed responses as unavailable and clears its footer.
+- treats malformed or failed responses as unavailable and clears its usage display.
 
 `/backend-api/wham/usage` is an undocumented/private ChatGPT endpoint. Its behavior, availability, and security characteristics are controlled by OpenAI and are outside this package's control.

@@ -1,7 +1,7 @@
 {
   "name": "@jonathan-teamstatus/pi-openai-usage",
-  "version": "0.1.0",
-  "description": "Pi footer and command for ChatGPT Codex usage windows",
+  "version": "0.1.1",
+  "description": "Right-aligned Pi TUI display and command for ChatGPT Codex usage windows",
   "type": "module",
   "private": false,
   "license": "MIT",
@@ -39,15 +39,20 @@
     "verify": "npm run check && npm pack --dry-run"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.80.6"
+    "@earendil-works/pi-coding-agent": ">=0.80.6",
+    "@earendil-works/pi-tui": ">=0.80.6"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
       "optional": true
     }
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.80.6",
+    "@earendil-works/pi-tui": "0.80.6",
     "@types/node": "^24.0.0",
     "typescript": "^5.9.0"
   },

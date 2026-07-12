@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { fetchOpenAIUsage, type UsageRequestOptions } from "./client.ts";
 import {
   decodeChatGPTAccountId,
@@ -7,7 +8,7 @@ import {
   type UsageSnapshot,
 } from "./core.ts";
 
-const STATUS_KEY = "openai-usage";
+const WIDGET_KEY = "openai-usage";
 const CODEX_PROVIDER = "openai-codex";
 const REFRESH_INTERVAL_MS = 60_000;
 const COMMAND_ERROR = "Unable to refresh OpenAI usage. Check your Codex OAuth sign-in and try again.";
@@ -44,15 +45,28 @@ function isUsingCodexOAuth(ctx: ExtensionContext): boolean {
 function clearUsage(ctx: ExtensionContext, runtime: Runtime): void {
   runtime.snapshot = undefined;
   runtime.updatedAt = undefined;
-  ctx.ui.setStatus(STATUS_KEY, undefined);
+  ctx.ui.setWidget(WIDGET_KEY, undefined);
 }
 
-function setUsageFooter(ctx: ExtensionContext, runtime: Runtime, now: number): void {
+function setUsageDisplay(ctx: ExtensionContext, runtime: Runtime, now: number): void {
   if (!runtime.snapshot) {
-    ctx.ui.setStatus(STATUS_KEY, undefined);
+    ctx.ui.setWidget(WIDGET_KEY, undefined);
     return;
   }
-  ctx.ui.setStatus(STATUS_KEY, formatUsageFooter(runtime.snapshot, now));
+
+  const text = formatUsageFooter(runtime.snapshot, now);
+  ctx.ui.setWidget(
+    WIDGET_KEY,
+    (_tui, theme) => ({
+      render(width: number) {
+        const truncated = truncateToWidth(text, width, "…");
+        const padding = " ".repeat(Math.max(0, width - visibleWidth(truncated)));
+        return [theme.fg("dim", padding + truncated)];
+      },
+      invalidate() {},
+    }),
+    { placement: "belowEditor" },
+  );
 }
 
 export function registerOpenAIUsage(pi: ExtensionAPI, options: OpenAIUsageOptions = {}): void {
@@ -103,7 +117,7 @@ export function registerOpenAIUsage(pi: ExtensionAPI, options: OpenAIUsageOption
       }
       runtime.snapshot = snapshot;
       runtime.updatedAt = now();
-      setUsageFooter(ctx, runtime, runtime.updatedAt);
+      setUsageDisplay(ctx, runtime, runtime.updatedAt);
       return snapshot;
     })();
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { ACCOUNT_ID_CLAIM_NAMESPACE } from "../src/core.ts";
 import { registerOpenAIUsage } from "../src/index.ts";
 
@@ -38,7 +39,7 @@ function createHarness(fetchImpl: typeof fetch, oauth = true) {
 }
 
 function createContext(oauth = true) {
-  const statuses = new Map<string, string | undefined>();
+  const widgets = new Map<string, { value: unknown; options?: { placement?: string } }>();
   const notifications: Array<{ message: string; level: string }> = [];
   const context = {
     model: { provider: "openai-codex", id: "gpt-5.5", api: "openai-codex-responses" },
@@ -54,15 +55,15 @@ function createContext(oauth = true) {
       },
     },
     ui: {
-      setStatus(key: string, value: string | undefined) {
-        statuses.set(key, value);
+      setWidget(key: string, value: unknown, options?: { placement?: string }) {
+        widgets.set(key, { value, options });
       },
       notify(message: string, level: string) {
         notifications.push({ message, level });
       },
     },
   } as unknown as ExtensionContext;
-  return { context, statuses, notifications };
+  return { context, widgets, notifications };
 }
 
 test("wires lifecycle refreshes, throttles background fetches, and force-refreshes /usage", async () => {
@@ -77,7 +78,7 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
     return validResponse();
   }) as typeof fetch;
   const { commands, events } = createHarness(fetchImpl);
-  const { context, statuses, notifications } = createContext();
+  const { context, widgets, notifications } = createContext();
 
   assert.deepEqual([...events.keys()].sort(), ["agent_settled", "model_select", "session_shutdown", "session_start"]);
   assert.equal(events.get("session_start")?.({}, context), undefined, "lifecycle refresh must not block Pi");
@@ -86,7 +87,19 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
   assert.ok(command);
   await command("", context);
   assert.equal(requests, 1, "/usage reuses an in-flight lifecycle refresh");
-  assert.match(statuses.get("openai-usage") ?? "", /^5h 28% ↻/);
+  const widget = widgets.get("openai-usage");
+  assert.equal(widget?.options?.placement, "belowEditor");
+  const factory = widget?.value as
+    | ((_tui: unknown, theme: { fg: (_color: string, text: string) => string }) => { render: (width: number) => string[] })
+    | undefined;
+  assert.ok(factory);
+  const component = factory({}, { fg: (_color, text) => text });
+  const rendered = component.render(80)[0] ?? "";
+  assert.equal(visibleWidth(rendered), 80);
+  assert.match(rendered.trim(), /^5h 72% ↻.* · 7d 39% ↻/);
+  assert.match(rendered, /^ +5h/, "usage widget is right-aligned");
+  assert.equal(visibleWidth(component.render(20)[0] ?? ""), 20, "narrow output is truncated to width");
+  assert.equal(visibleWidth(component.render(0)[0] ?? ""), 0);
 
   assert.equal(events.get("agent_settled")?.({}, context), undefined);
   assert.equal(requests, 1, "background refreshes are throttled");
@@ -98,21 +111,21 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
 
   (context as unknown as { model: { provider: string } }).model = { provider: "anthropic" };
   events.get("model_select")?.({}, context);
-  assert.equal(statuses.get("openai-usage"), undefined);
+  assert.equal(widgets.get("openai-usage")?.value, undefined);
 });
 
-test("clears status without a Codex OAuth session", async () => {
+test("clears display without a Codex OAuth session", async () => {
   let requests = 0;
   const fetchImpl = (async () => {
     requests++;
     return validResponse();
   }) as typeof fetch;
   const { events } = createHarness(fetchImpl);
-  const { context, statuses } = createContext(false);
+  const { context, widgets } = createContext(false);
 
   events.get("session_start")?.({}, context);
   assert.equal(requests, 0);
-  assert.equal(statuses.get("openai-usage"), undefined);
+  assert.equal(widgets.get("openai-usage")?.value, undefined);
 });
 
 test("switching away from Codex aborts an in-flight background refresh", async () => {
@@ -134,7 +147,7 @@ test("switching away from Codex aborts an in-flight background refresh", async (
       );
     })) as typeof fetch;
   const { events } = createHarness(fetchImpl);
-  const { context, statuses } = createContext();
+  const { context, widgets } = createContext();
 
   events.get("session_start")?.({}, context);
   await started;
@@ -143,7 +156,7 @@ test("switching away from Codex aborts an in-flight background refresh", async (
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(aborted, true);
-  assert.equal(statuses.get("openai-usage"), undefined);
+  assert.equal(widgets.get("openai-usage")?.value, undefined);
 });
 
 test("session shutdown aborts an in-flight background refresh", async () => {
@@ -165,7 +178,7 @@ test("session shutdown aborts an in-flight background refresh", async () => {
       );
     })) as typeof fetch;
   const { events } = createHarness(fetchImpl);
-  const { context, statuses } = createContext();
+  const { context, widgets } = createContext();
 
   assert.equal(events.get("session_start")?.({}, context), undefined);
   await started;
@@ -173,7 +186,7 @@ test("session shutdown aborts an in-flight background refresh", async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(aborted, true);
-  assert.equal(statuses.get("openai-usage"), undefined);
+  assert.equal(widgets.get("openai-usage")?.value, undefined);
 });
 
 test("/usage never exposes a failed endpoint response body", async () => {

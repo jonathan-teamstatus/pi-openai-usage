@@ -73,12 +73,12 @@ test("formats relative resets plus compact footer and detailed status", () => {
   assert.equal(formatRelativeReset(NOW + (2 * 60 + 12) * 60_000, NOW), "2h12m");
   assert.equal(formatRelativeReset(NOW + (3 * 24 + 4) * 60 * 60_000, NOW), "3d4h");
   assert.equal(formatRelativeReset(NOW - 1, NOW), "now");
-  assert.equal(formatUsageFooter(usage, NOW), "5h 28% ↻2h12m · 7d 61% ↻3d4h");
+  assert.equal(formatUsageFooter(usage, NOW), "5h 72% ↻2h12m · 7d 39% ↻3d4h");
 
   const details = formatUsageDetails(usage, NOW, NOW);
   assert.match(details, /Primary window \(5h\)/);
   assert.match(details, /Secondary window \(7d\)/);
-  assert.match(details, /Used: 28%/);
+  assert.match(details, /Remaining: 72%/);
   assert.match(details, /Resets: in 2h12m/);
   assert.match(details, /Updated:/);
 });

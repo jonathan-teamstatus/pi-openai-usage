@@ -81,6 +81,10 @@ export function formatPercent(value: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
+export function formatRemainingPercent(usedPercent: number): string {
+  return formatPercent(Math.min(100, Math.max(0, 100 - usedPercent)));
+}
+
 export function formatWindowLabel(limitWindowSeconds: number): string {
   if (limitWindowSeconds >= 86_400 && limitWindowSeconds % 86_400 === 0) {
     return `${limitWindowSeconds / 86_400}d`;
@@ -108,7 +112,7 @@ function formatAbsoluteReset(resetAt: number): string {
 }
 
 function formatWindowFooter(window: UsageWindow, now: number): string {
-  return `${formatWindowLabel(window.limitWindowSeconds)} ${formatPercent(window.usedPercent)} ↻${formatRelativeReset(window.resetAt, now)}`;
+  return `${formatWindowLabel(window.limitWindowSeconds)} ${formatRemainingPercent(window.usedPercent)} ↻${formatRelativeReset(window.resetAt, now)}`;
 }
 
 export function formatUsageFooter(snapshot: UsageSnapshot, now = Date.now()): string {
@@ -119,7 +123,7 @@ function formatWindowDetails(label: string, window: UsageWindow, now: number): s
   const relative = formatRelativeReset(window.resetAt, now);
   return [
     `${label} window (${formatWindowLabel(window.limitWindowSeconds)})`,
-    `  Used: ${formatPercent(window.usedPercent)}`,
+    `  Remaining: ${formatRemainingPercent(window.usedPercent)}`,
     `  Resets: ${relative === "now" ? "now" : `in ${relative}`} (${formatAbsoluteReset(window.resetAt)})`,
   ];
 }

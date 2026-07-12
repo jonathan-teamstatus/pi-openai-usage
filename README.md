@@ -1,6 +1,6 @@
 # pi-openai-usage
 
-A standalone [Pi](https://pi.dev) extension that shows ChatGPT Codex rate-limit usage in Pi's footer and with `/usage`.
+A standalone [Pi](https://pi.dev) extension that shows ChatGPT Codex rate-limit usage in a right-aligned line below the editor and with `/usage`.
 
 ## Important: private endpoint
 
@@ -8,8 +8,10 @@ This extension calls `https://chatgpt.com/backend-api/wham/usage`. This is an un
 
 ## Features
 
-- Compact footer after a valid response, for example: `5h 28% ↻2h12m · 7d 61% ↻3d4h`.
-- `/usage` force-refreshes and displays both windows, used percentages, relative and local reset times, and update time.
+- Compact, dimmed usage line aligned to the right below the editor, for example: `5h 73% ↻2h12m · 7d 90% ↻3d4h`.
+- Keeps Pi's left-aligned extension-status area free for shorter mode indicators.
+- Matches the Codex app by showing percentage remaining (`100 − used_percent`).
+- `/usage` force-refreshes and displays both windows, remaining percentages, relative and local reset times, and update time.
 - Refreshes without blocking Pi at session start, when an `openai-codex` model is selected, and after the agent settles.
 - Background refreshes are throttled to at most once a minute; there is no periodic timer.
 - Uses only Pi's public extension APIs. It verifies Pi's built-in Codex model is using OAuth, then obtains a refreshed access token with `ctx.modelRegistry.getApiKeyForProvider("openai-codex")`.
@@ -21,7 +23,7 @@ This extension calls `https://chatgpt.com/backend-api/wham/usage`. This is an un
 Install a pinned release:
 
 ```bash
-pi install git:github.com/jonathan-teamstatus/pi-openai-usage@v0.1.0
+pi install git:github.com/jonathan-teamstatus/pi-openai-usage@v0.1.1
 ```
 
 For local development:
@@ -30,7 +32,7 @@ For local development:
 pi install "$PWD"
 ```
 
-Select a built-in `openai-codex` model and sign in through Pi's `/login`. The footer appears only after a successful response.
+Select a built-in `openai-codex` model and sign in through Pi's `/login`. The right-aligned usage line appears only after a successful response.
 
 ## Command
 
@@ -40,7 +42,7 @@ Select a built-in `openai-codex` model and sign in through Pi's `/login`. The fo
 
 ## Privacy and security
 
-- OAuth access tokens and decoded account IDs are held only in memory for a request. They are never written to disk, session state, the footer, notifications, or logs.
+- OAuth access tokens and decoded account IDs are held only in memory for a request. They are never written to disk, session state, the usage display, notifications, or logs.
 - The extension does not persist usage data or start a timer.
 - It deliberately does not include endpoint response bodies in errors. `/usage` reports a generic sign-in/refresh failure instead.
 - The request has a 10-second timeout, rejects redirects, and sends `Authorization: Bearer <token>` plus `ChatGPT-Account-Id` only to the fixed `chatgpt.com` endpoint.
