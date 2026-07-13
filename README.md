@@ -8,11 +8,11 @@ This extension calls `https://chatgpt.com/backend-api/wham/usage`. This is an un
 
 ## Features
 
-- Places compact usage on the right side of the working-directory/branch line, for example: `5h 73% · 7d 90%`.
+- Places compact usage on the right side of the working-directory/branch line, for example: `5h 73% · 7d 90%` or `7d 98%` when OpenAI returns only one window.
 - Preserves Pi's token/context/model line and the separate extension-status line below it.
 - Keeps reset countdowns and local reset times in `/usage` instead of adding another TUI line.
 - Matches the Codex app by showing percentage remaining (`100 − used_percent`).
-- `/usage` force-refreshes and displays both windows, remaining percentages, relative and local reset times, and update time.
+- `/usage` force-refreshes and displays all available windows, remaining percentages, relative and local reset times, and update time.
 - Refreshes without blocking Pi at session start, when an `openai-codex` model is selected, and after the agent settles.
 - Background refreshes are throttled to at most once a minute; there is no periodic timer.
 - Uses only Pi's public extension APIs. It verifies Pi's built-in Codex model is using OAuth, then obtains a refreshed access token with `ctx.modelRegistry.getApiKeyForProvider("openai-codex")`.
@@ -24,7 +24,7 @@ This extension calls `https://chatgpt.com/backend-api/wham/usage`. This is an un
 Install a pinned release:
 
 ```bash
-pi install git:github.com/jonathan-teamstatus/pi-openai-usage@v0.1.2
+pi install git:github.com/jonathan-teamstatus/pi-openai-usage@v0.1.3
 ```
 
 For local development:

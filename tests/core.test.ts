@@ -38,12 +38,28 @@ test("decodes only the local ChatGPT account claim from a JWT payload", () => {
   assert.equal(decodeChatGPTAccountId("header.%%%%.signature"), undefined);
 });
 
-test("parses both usage windows and rejects malformed payloads", () => {
+test("parses one or two usage windows and rejects malformed payloads", () => {
   const parsed = parseUsagePayload(usagePayload());
   assert.deepEqual(parsed, {
     primary: { usedPercent: 28, limitWindowSeconds: 18_000, resetAt: NOW + (2 * 60 + 12) * 60_000 },
     secondary: { usedPercent: 61, limitWindowSeconds: 604_800, resetAt: NOW + (3 * 24 + 4) * 60 * 60_000 },
   });
+
+  assert.deepEqual(
+    parseUsagePayload({
+      rate_limit: {
+        primary_window: {
+          used_percent: 2,
+          limit_window_seconds: 604_800,
+          reset_at: (NOW + 604_800_000) / 1_000,
+        },
+        secondary_window: null,
+      },
+    }),
+    {
+      primary: { usedPercent: 2, limitWindowSeconds: 604_800, resetAt: NOW + 604_800_000 },
+    },
+  );
 
   assert.equal(parseUsagePayload(null), undefined);
   assert.equal(parseUsagePayload({ rate_limit: {} }), undefined);
@@ -81,4 +97,19 @@ test("formats relative resets plus compact footer and detailed status", () => {
   assert.match(details, /Remaining: 72%/);
   assert.match(details, /Resets: in 2h12m/);
   assert.match(details, /Updated:/);
+
+  const singleWindowUsage = parseUsagePayload({
+    rate_limit: {
+      primary_window: {
+        used_percent: 2,
+        limit_window_seconds: 604_800,
+        reset_at: (NOW + 604_800_000) / 1_000,
+      },
+      secondary_window: null,
+    },
+  });
+  assert.ok(singleWindowUsage);
+  assert.equal(formatUsageStatus(singleWindowUsage), "7d 98%");
+  assert.match(formatUsageDetails(singleWindowUsage, NOW, NOW), /Primary window \(7d\)/);
+  assert.doesNotMatch(formatUsageDetails(singleWindowUsage, NOW, NOW), /Secondary window/);
 });

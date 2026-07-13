@@ -12,12 +12,14 @@ function accessToken(accountId = "acct_123"): string {
   return `header.${payload}.signature`;
 }
 
-function validResponse(): Response {
+function validResponse({ secondary = true }: { secondary?: boolean } = {}): Response {
   const now = Date.now();
   return Response.json({
     rate_limit: {
       primary_window: { used_percent: 28, limit_window_seconds: 18_000, reset_at: (now + 7_200_000) / 1_000 },
-      secondary_window: { used_percent: 61, limit_window_seconds: 604_800, reset_at: (now + 259_200_000) / 1_000 },
+      secondary_window: secondary
+        ? { used_percent: 61, limit_window_seconds: 604_800, reset_at: (now + 259_200_000) / 1_000 }
+        : null,
     },
   });
 }
@@ -153,6 +155,21 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
   (context as unknown as { model: { provider: string } }).model = { provider: "anthropic" };
   events.get("model_select")?.({}, context);
   assert.doesNotMatch(getFooter()?.render(100)[0] ?? "", /5h 72%/);
+});
+
+test("renders a response with no secondary usage window", async () => {
+  const fetchImpl = (async () => validResponse({ secondary: false })) as typeof fetch;
+  const { commands, events } = createHarness(fetchImpl);
+  const { context, notifications, getFooter } = createContext();
+
+  events.get("session_start")?.({}, context);
+  const command = commands.get("usage")?.handler as ((args: string, ctx: ExtensionContext) => Promise<void>) | undefined;
+  assert.ok(command);
+  await command("", context);
+
+  assert.match(getFooter()?.render(100)[0] ?? "", /^\/tmp\/project \(main\) +5h 72%$/);
+  assert.match(notifications.at(-1)?.message ?? "", /Primary window \(5h\)/);
+  assert.doesNotMatch(notifications.at(-1)?.message ?? "", /Secondary window/);
 });
 
 test("clears display without a Codex OAuth session", async () => {

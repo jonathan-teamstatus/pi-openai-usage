@@ -8,7 +8,7 @@ export interface UsageWindow {
 
 export interface UsageSnapshot {
   primary: UsageWindow;
-  secondary: UsageWindow;
+  secondary?: UsageWindow;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,13 +51,18 @@ function parseWindow(value: unknown): UsageWindow | undefined {
   return { usedPercent, limitWindowSeconds, resetAt };
 }
 
-/** Parse only the two documented-by-observation windows needed by this extension. */
+/** Parse the one or two documented-by-observation windows needed by this extension. */
 export function parseUsagePayload(value: unknown): UsageSnapshot | undefined {
   if (!isRecord(value) || !isRecord(value.rate_limit)) return undefined;
 
   const primary = parseWindow(value.rate_limit.primary_window);
-  const secondary = parseWindow(value.rate_limit.secondary_window);
-  return primary && secondary ? { primary, secondary } : undefined;
+  if (!primary) return undefined;
+
+  const secondaryValue = value.rate_limit.secondary_window;
+  if (secondaryValue === null || secondaryValue === undefined) return { primary };
+
+  const secondary = parseWindow(secondaryValue);
+  return secondary ? { primary, secondary } : undefined;
 }
 
 /** Decode the account claim without verifying or otherwise using the JWT. */
@@ -116,7 +121,8 @@ function formatWindowStatus(window: UsageWindow): string {
 }
 
 export function formatUsageStatus(snapshot: UsageSnapshot): string {
-  return `${formatWindowStatus(snapshot.primary)} · ${formatWindowStatus(snapshot.secondary)}`;
+  const primary = formatWindowStatus(snapshot.primary);
+  return snapshot.secondary ? `${primary} · ${formatWindowStatus(snapshot.secondary)}` : primary;
 }
 
 function formatWindowDetails(label: string, window: UsageWindow, now: number): string[] {
@@ -132,7 +138,7 @@ export function formatUsageDetails(snapshot: UsageSnapshot, updatedAt: number, n
   return [
     "OpenAI Codex usage",
     ...formatWindowDetails("Primary", snapshot.primary, now),
-    ...formatWindowDetails("Secondary", snapshot.secondary, now),
+    ...(snapshot.secondary ? formatWindowDetails("Secondary", snapshot.secondary, now) : []),
     `Updated: ${new Date(updatedAt).toLocaleString()}`,
   ].join("\n");
 }
