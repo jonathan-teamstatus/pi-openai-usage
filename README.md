@@ -9,7 +9,8 @@ This extension calls `https://chatgpt.com/backend-api/wham/usage`. This is an un
 ## Features
 
 - Places compact usage on the right side of the working-directory/branch line, for example: `5h 73% · 7d 90%` or `7d 98%` when OpenAI returns only one window.
-- Preserves Pi's token/context/model line and the separate extension-status line below it.
+- Keeps Pi's token/context/model line, placing live token throughput beside the model where it is easier to scan.
+- Organizes extension status as one muted mode/warning line: routine ready states are hidden, while actionable states remain visible.
 - Keeps reset countdowns and local reset times in `/usage` instead of adding another TUI line.
 - Matches the Codex app by showing percentage remaining (`100 − used_percent`).
 - `/usage` force-refreshes and displays all available windows, remaining percentages, relative and local reset times, and update time.
@@ -37,7 +38,7 @@ Select a built-in `openai-codex` model and sign in through Pi's `/login`. The co
 
 ## Footer compatibility
 
-Pi's public `setStatus` API cannot right-align text within the working-directory line, so this extension uses the public custom-footer API and mirrors Pi 0.80.x's standard three-line footer. Pi supports one custom footer at a time; another custom-footer extension loaded later will replace this one. The mirrored footer keeps the normal `(auto)` indicator but cannot observe a runtime auto-compaction toggle, and it omits Pi's experimental `xp` marker.
+Pi's public `setStatus` API cannot right-align text within the working-directory line, so this extension uses the public custom-footer API and mirrors Pi 0.80.x's standard footer. It also applies a compact display policy to extension statuses: token throughput moves beside the model; `Headroom: ready`, `Graphify: ready`, Edit Guard mode details, and connected Xcode tool counts are hidden; offline, stale, connecting, and active-work states remain visible. Pi supports one custom footer at a time; another custom-footer extension loaded later will replace this one. The mirrored footer keeps the normal `(auto)` indicator but cannot observe a runtime auto-compaction toggle, and it omits Pi's experimental `xp` marker.
 
 ## Command
 

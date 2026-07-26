@@ -37,6 +37,47 @@ function sanitizeStatusText(text: string): string {
   return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
 }
 
+const ANSI_ESCAPE_PATTERN = /\x1b(?:\[[0-?]*[ -/]*[@-~]|[@-_])/g;
+
+function plainStatusText(text: string): string {
+  const plain = sanitizeStatusText(text).replace(ANSI_ESCAPE_PATTERN, "").trim();
+  const unwrapped = plain.startsWith("[") && plain.endsWith("]") ? plain.slice(1, -1).trim() : plain;
+  return unwrapped.toLowerCase();
+}
+
+interface OrganizedStatuses {
+  throughput?: string;
+  items: string[];
+}
+
+function organizeStatuses(statuses: ReadonlyMap<string, string>): OrganizedStatuses {
+  const organized: OrganizedStatuses = { items: [] };
+
+  for (const [key, rawText] of Array.from(statuses.entries()).sort(([left], [right]) => left.localeCompare(right))) {
+    const text = plainStatusText(rawText);
+    if (!text) continue;
+
+    const isThroughput = /^~?\d+(?:\.\d+)? tok\/s$/i.test(text);
+    if (key === "tokens-per-second") {
+      if (isThroughput) organized.throughput = text;
+      continue;
+    }
+    if (isThroughput) {
+      organized.throughput = text;
+      continue;
+    }
+
+    if (key === "edit-guard") continue;
+    if ((key === "10-headroom" || text.startsWith("headroom:")) && /^Headroom:\s*ready$/i.test(text)) continue;
+    if ((key === "20-graphify" || text.startsWith("graphify:")) && /^Graphify:\s*ready$/i.test(text)) continue;
+    if ((key === "xcode-mcp" || text.startsWith("xcode:")) && /^Xcode:\s*\d+ tools?$/i.test(text)) continue;
+
+    organized.items.push(text);
+  }
+
+  return organized;
+}
+
 export interface UsageFooterHandle {
   requestRender(): void;
   restore(): void;
@@ -118,11 +159,16 @@ export function installUsageFooter(
           statsLeftWidth = visibleWidth(statsLeft);
         }
 
+        const organizedStatuses = organizeStatuses(footerData.getExtensionStatuses());
+
         let modelTextWithoutProvider = model?.id ?? "no-model";
         if (model?.reasoning) {
           const thinking = pi.getThinkingLevel() ?? "off";
           modelTextWithoutProvider =
             thinking === "off" ? `${modelTextWithoutProvider} • thinking off` : `${modelTextWithoutProvider} • ${thinking}`;
+        }
+        if (organizedStatuses.throughput) {
+          modelTextWithoutProvider += ` • ${organizedStatuses.throughput}`;
         }
         let modelText = modelTextWithoutProvider;
         if (footerData.getAvailableProviderCount() > 1 && model) {
@@ -149,10 +195,10 @@ export function installUsageFooter(
           theme.fg("dim", statsLeft) + theme.fg("dim", combinedStats.slice(statsLeft.length));
 
         const lines = [pwdLine, statsLine];
-        const statuses = Array.from(footerData.getExtensionStatuses().entries())
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([, text]) => sanitizeStatusText(text));
-        if (statuses.length > 0) lines.push(truncateToWidth(statuses.join(" "), width, theme.fg("dim", "...")));
+        if (organizedStatuses.items.length > 0) {
+          const statusLine = theme.fg("dim", organizedStatuses.items.join(" • "));
+          lines.push(truncateToWidth(statusLine, width, theme.fg("dim", "...")));
+        }
         return lines;
       },
       invalidate() {},

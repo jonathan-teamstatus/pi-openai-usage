@@ -43,7 +43,12 @@ function createHarness(fetchImpl: typeof fetch, oauth = true) {
   return { commands, events };
 }
 
-function createContext(oauth = true) {
+function createContext(
+  oauth = true,
+  extensionStatuses: ReadonlyMap<string, string> = new Map([
+    ["00-sandbox", "[Sandbox: off · review auto]"],
+  ]),
+) {
   let footerComponent: { render: (width: number) => string[]; dispose?: () => void } | undefined;
   let renderRequests = 0;
   const notifications: Array<{ message: string; level: string }> = [];
@@ -94,7 +99,7 @@ function createContext(oauth = true) {
           },
           {
             getGitBranch: () => "main",
-            getExtensionStatuses: () => new Map([["00-sandbox", "[Sandbox: off · review auto]"]]),
+            getExtensionStatuses: () => extensionStatuses,
             getAvailableProviderCount: () => 2,
             onBranchChange: () => () => {},
           },
@@ -137,7 +142,7 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
   const footerLines = getFooter()?.render(100) ?? [];
   assert.match(footerLines[0] ?? "", /^\/tmp\/project \(main\) +5h 72% · 7d 39%$/);
   assert.match(footerLines[1] ?? "", /5\.0%\/272k \(auto\).*gpt-5\.5.*high/);
-  assert.equal(footerLines[2], "[Sandbox: off · review auto]");
+  assert.equal(footerLines[2], "sandbox: off · review auto");
   const narrowStats = getFooter()?.render(20)[1] ?? "";
   assert.ok(visibleWidth(narrowStats) <= 20);
   assert.match(narrowStats, /5\.0%/, "narrow footer preserves context stats before model text");
@@ -155,6 +160,69 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
   (context as unknown as { model: { provider: string } }).model = { provider: "anthropic" };
   events.get("model_select")?.({}, context);
   assert.doesNotMatch(getFooter()?.render(100)[0] ?? "", /5h 72%/);
+});
+
+test("organizes extension status into mode, warning, and throughput information", async () => {
+  const fetchImpl = (async () => validResponse()) as typeof fetch;
+  const { commands, events } = createHarness(fetchImpl);
+  const { context, getFooter } = createContext(
+    true,
+    new Map([
+      ["00-sandbox", "[Sandbox: off · review auto]"],
+      ["10-headroom", "[Headroom: ready]"],
+      ["20-graphify", "[Graphify: ready]"],
+      ["edit-guard", "[Edit guard: diagnose]"],
+      ["openai-fast-mode", "[OpenAI: fast]"],
+      ["tokens-per-second", "\u001b[2m~42.5 tok/s\u001b[22m"],
+      ["xcode-mcp", "Xcode: 21 tools"],
+    ]),
+  );
+
+  events.get("session_start")?.({}, context);
+  const command = commands.get("usage")?.handler as ((args: string, ctx: ExtensionContext) => Promise<void>) | undefined;
+  assert.ok(command);
+  await command("", context);
+
+  const footerLines = getFooter()?.render(120) ?? [];
+  assert.match(footerLines[1] ?? "", /gpt-5\.5.*high.*~42\.5 tok\/s/);
+  assert.equal(footerLines[2], "sandbox: off · review auto • openai: fast");
+  assert.doesNotMatch(footerLines.join("\n"), /Headroom: ready|Graphify: ready|Edit guard|21 tools/);
+});
+
+test("keeps Headroom token savings visible", () => {
+  const fetchImpl = (async () => validResponse()) as typeof fetch;
+  const { events } = createHarness(fetchImpl);
+  const { context, getFooter } = createContext(
+    true,
+    new Map([["10-headroom", "[headroom: 1.1% saved]"]]),
+  );
+
+  events.get("session_start")?.({}, context);
+  assert.equal(getFooter()?.render(120)[2], "headroom: 1.1% saved");
+});
+
+test("keeps non-ready extension states visible", () => {
+  const fetchImpl = (async () => validResponse()) as typeof fetch;
+  const { events } = createHarness(fetchImpl);
+  const { context, getFooter } = createContext(
+    true,
+    new Map([
+      ["10-headroom", "[Headroom: offline]"],
+      ["20-graphify", "[Graphify: stale]"],
+      ["30-subagents", "[Subagents: 1 active]"],
+      ["edit-guard", "[Edit guard: diagnose]"],
+      ["tokens-per-second", "— tok/s"],
+      ["xcode-mcp", "Xcode: connecting"],
+    ]),
+  );
+
+  events.get("session_start")?.({}, context);
+  const footerLines = getFooter()?.render(120) ?? [];
+  assert.equal(
+    footerLines[2],
+    "headroom: offline • graphify: stale • subagents: 1 active • xcode: connecting",
+  );
+  assert.doesNotMatch(footerLines.join("\n"), /tok\/s/);
 });
 
 test("renders a response with no secondary usage window", async () => {
