@@ -46,7 +46,7 @@ function createHarness(fetchImpl: typeof fetch, oauth = true) {
 function createContext(
   oauth = true,
   extensionStatuses: ReadonlyMap<string, string> = new Map([
-    ["00-sandbox", "[Sandbox: off · review auto]"],
+    ["00-sandbox", "[sandbox: off · review: auto]"],
   ]),
 ) {
   let footerComponent: { render: (width: number) => string[]; dispose?: () => void } | undefined;
@@ -142,7 +142,7 @@ test("wires lifecycle refreshes, throttles background fetches, and force-refresh
   const footerLines = getFooter()?.render(100) ?? [];
   assert.match(footerLines[0] ?? "", /^\/tmp\/project \(main\) +5h 72% · 7d 39%$/);
   assert.match(footerLines[1] ?? "", /5\.0%\/272k \(auto\).*gpt-5\.5.*high/);
-  assert.equal(footerLines[2], "sandbox: off · review auto");
+  assert.equal(footerLines[2], "sandbox: off · review: auto");
   const narrowStats = getFooter()?.render(20)[1] ?? "";
   assert.ok(visibleWidth(narrowStats) <= 20);
   assert.match(narrowStats, /5\.0%/, "narrow footer preserves context stats before model text");
@@ -168,7 +168,7 @@ test("organizes extension status into mode, warning, and throughput information"
   const { context, getFooter } = createContext(
     true,
     new Map([
-      ["00-sandbox", "[Sandbox: off · review auto]"],
+      ["00-sandbox", "[sandbox: off · review: auto]"],
       ["10-headroom", "[Headroom: ready]"],
       ["20-graphify", "[Graphify: ready]"],
       ["edit-guard", "[Edit guard: diagnose]"],
@@ -185,7 +185,7 @@ test("organizes extension status into mode, warning, and throughput information"
 
   const footerLines = getFooter()?.render(120) ?? [];
   assert.match(footerLines[1] ?? "", /gpt-5\.5.*high.*~42\.5 tok\/s/);
-  assert.equal(footerLines[2], "sandbox: off · review auto • openai: fast");
+  assert.equal(footerLines[2], "sandbox: off · review: auto • openai: fast");
   assert.doesNotMatch(footerLines.join("\n"), /Headroom: ready|Graphify: ready|Edit guard|21 tools/);
 });
 
